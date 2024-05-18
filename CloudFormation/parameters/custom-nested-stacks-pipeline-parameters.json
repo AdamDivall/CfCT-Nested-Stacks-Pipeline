@@ -1,0 +1,110 @@
+[
+    {
+        "ParameterKey": "pEnableBuildAutoNestedStackUpdates",
+        "ParameterValue": "True"
+    },
+    {
+        "ParameterKey": "pSolutionVersion",
+        "ParameterValue": "v1.0"
+    },
+    {
+        "ParameterKey": "pRepositoryName",
+        "ParameterValue": "Nested-Stack-Modules"
+    },
+    {
+        "ParameterKey": "pS3LifeCycleTransition",
+        "ParameterValue": "30"
+    },
+    {
+        "ParameterKey": "pS3LifeCycleExpiration",
+        "ParameterValue": "365"
+    },
+    {
+        "ParameterKey": "pTagEnvironment",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagSDLC",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagApplicationName",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagApplicationRole",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagCluster",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagDataClassification",
+        "ParameterValue": "Private"
+    },
+    {
+        "ParameterKey": "pTagCompliance",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagDataRetention",
+        "ParameterValue": "365"
+    },
+    {
+        "ParameterKey": "pTagMapMigrated",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagProjectName",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagProductOwner",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagTechnicalOwner",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagCostCenter",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagBusinessUnit",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagBusinessImpact",
+        "ParameterValue": "Medium"
+    },
+    {
+        "ParameterKey": "pTagEscalationPath",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagKnowledgeBase",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagHoursOfOperation",
+        "ParameterValue": "24x7"
+    },
+    {
+        "ParameterKey": "pTagMaintenanceWindow",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagBackupSchedule",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagOptOut",
+        "ParameterValue": "False"
+    },
+    {
+        "ParameterKey": "pTagDeploymentMethod",
+        "ParameterValue": "CloudFormation"
+    }
+]

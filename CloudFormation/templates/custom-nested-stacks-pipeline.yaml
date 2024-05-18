@@ -1,0 +1,1362 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation to Establish a Pipeline for Deploying Tagging Policies to AWS Organizations
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Pipeline Configuration
+        Parameters:
+          - pRepositoryName
+          - pS3LifeCycleTransition
+          - pS3LifeCycleExpiration
+          - pEnableBuildAutoNestedStackUpdates
+          - pSolutionVersion
+      - Label:
+          default: Tagging Configuration
+        Parameters:
+          - pTagEnvironment
+          - pTagSDLC
+          - pTagApplicationName
+          - pTagApplicationRole
+          - pTagCluster
+          - pTagDataClassification
+          - pTagCompliance
+          - pTagDataRetention
+          - pTagMapMigrated
+          - pTagProjectName
+          - pTagProductOwner
+          - pTagTechnicalOwner
+          - pTagCostCenter
+          - pTagBusinessUnit
+          - pTagBusinessImpact
+          - pTagEscalationPath
+          - pTagKnowledgeBase
+          - pTagHoursOfOperation
+          - pTagMaintenanceWindow
+          - pTagBackupSchedule
+          - pTagOptOut
+          - pTagDeploymentMethod
+Parameters:
+  pRepositoryName:
+    Type: String
+    Description: "Name of Code Commit Repository"
+    Default: "Nested-Stack-Modules"
+  pS3LifeCycleTransition:
+    Type: String
+    Description: Number of Days to retain the logs in Amazon S3 before transitioning the Logs to Amazon S3 Glacier.
+    Default: 30
+  pS3LifeCycleExpiration:
+    Type: String
+    Description: Identify the data retention policy applied to the resources (S3, ECR, CloudWatch Logs, EC2 AMI, EBS Snapshots, RDS Snapshot) must be greater than 'Days' in the Transition action
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 150
+      - 180
+      - 365
+      - 400
+      - 545
+      - 731
+      - 1827
+      - 3653
+  pEnableBuildAutoNestedStackUpdates:
+    Type: String
+    Description: "If you wish to Enable Nested Stack templates to be auto updated with the build pipeline from Code Commit"
+    AllowedValues:
+      - "True"
+      - "False"
+    Default: "True"
+  pSolutionVersion:
+    Type: String
+    Description: "If you pEnableBuildAutoNestedStackUpdates is False Nested Stack templates can be updated manually with the SolutionVersion you update here"
+    Default: "v1.0"
+  pTagEnvironment:
+    Type: String
+    Description: Select the Name of the Environment
+    AllowedValues:
+      - Production
+      - Non-Production
+  pTagSDLC:
+    Type: String
+    Description: Distinguish between SDLC Environments e.g., Dev, Test, SIT, UAT
+    AllowedValues:
+      - Dev
+      - Test
+      - SIT
+      - UAT
+      - Pre-Prod
+      - Prod
+  pTagApplicationName:
+    Type: String
+    Description: Identify resources that are related to a specific application
+  pTagApplicationRole:
+    Type: String
+    Description: Identify the function of a particular resource e.g., Web Server, Message Broker, Database Server
+  pTagCluster:
+    Type: String
+    Description: Identify resource farms that share a common configuration and perform a specific function for an application
+  pTagDataClassification:
+    Type: String
+    Description: Identify the specific data confidentiality level a resource supports
+    AllowedValues:
+      - Public
+      - Private
+      - Confidential
+      - Restricted
+    Default: Private
+  pTagCompliance:
+    Type: String
+    Description: Identify the specific compliance requirements that resources must adhere to e.g., PCI-DSS, HIPAA, ISO27001
+  pTagDataRetention:
+    Type: String
+    Description: Identify the data retention policy applied to the resources (S3, ECR, CloudWatch Logs, EC2 AMI, EBS Snapshots, RDS Snapshot)
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 150
+      - 180
+      - 365
+      - 400
+      - 545
+      - 731
+      - 1827
+      - 3653
+  pTagMapMigrated:
+    Type: String
+    Description: Identify resources that have been migrated as part of the AWS Migration Acceleration Program (MAP) for funding purposes
+  pTagProjectName:
+    Type: String
+    Description: Identify projects that the resource supports
+  pTagProductOwner:
+    Type: String
+    Description: Identify who is commercially responsible for the resource
+  pTagTechnicalOwner:
+    Type: String
+    Description: Identify who is technically responsible for the resource
+  pTagCostCenter:
+    Type: String
+    Description: Identify the cost center associated with a resource, typically for cost allocation and tracking
+  pTagBusinessUnit:
+    Type: String
+    Description: Identify the business unit associated with a resource, typically for cost allocation and tracking
+  pTagBusinessImpact:
+    Type: String
+    Description: Identify the business impact associated with the resource
+    AllowedValues:
+      - Critical
+      - High
+      - Medium
+      - Low
+    Default: Medium
+  pTagEscalationPath:
+    Type: String
+    Description: Identify the next point of contact for a resource in an incident e.g, DevOps Team, 3rd Party Company
+  pTagKnowledgeBase:
+    Type: String
+    Description: Identifies the location for knowledge base articles/wikis for the resource
+  pTagHoursOfOperation:
+    Type: String
+    Description: Identify the hours of operation for a resource e.g., 24*7, 06:00 - 22:00 Monday - Friday, 08:00 - 18:00 Monday - Friday
+    AllowedValues:
+      - 24x7
+      - 16x5
+      - 9x5
+    Default: 24x7
+  pTagMaintenanceWindow:
+    Type: String
+    Description: Identify the hours in which a resource is available for maintenance to occur
+  pTagBackupSchedule:
+    Type: String
+    Description: Identify the backup schedule for a resource
+  pTagOptOut:
+    Type: String
+    Description: Identify whether a resource should be excluded from maintenance activities e.g., True, False
+    AllowedValues:
+      - "True"
+      - "False"
+    Default: "False"
+  pTagDeploymentMethod:
+    Type: String
+    Description: Identify the method by which resources are deployed
+    AllowedValues:
+      - CloudFormation
+      - Terraform
+      - Manual
+    Default: CloudFormation
+Resources:
+  rCodeCommitNestedStacks:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryDescription: "Repository for cloudformation module deployments that leverage nested stacks"
+      RepositoryName: !Ref pRepositoryName
+      Tags:
+        - Key: Name
+          Value: !Ref pRepositoryName
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rS3PipelineArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "nested-stacks-codepipeline-artifacts-${AWS::Region}-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "aws:kms"
+              KMSMasterKeyID: !GetAtt rKmsKeyPipeline.Arn
+      PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: RetentionRule
+            Status: Enabled
+            ExpirationInDays: !Ref pS3LifeCycleExpiration
+            NoncurrentVersionExpirationInDays: !Ref pS3LifeCycleExpiration
+            Transitions:
+                - TransitionInDays: !Ref pS3LifeCycleTransition
+                  StorageClass: Glacier
+            NoncurrentVersionTransitions:
+                - TransitionInDays: !Ref pS3LifeCycleTransition
+                  StorageClass: Glacier
+      Tags:
+        - Key: Name
+          Value: !Sub "nested-stacks-codepipeline-artifacts-${AWS::Region}-${AWS::AccountId}"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rS3PipelineArtifactBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref rS3PipelineArtifactBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: "s3:*"
+            Effect: "Deny"
+            Principal: "*"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${rS3PipelineArtifactBucket}"
+              - !Sub "arn:${AWS::Partition}:s3:::${rS3PipelineArtifactBucket}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+  rKmsKeyPipeline:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: "KMS Key used for Nested Stack Pipeline"
+      Enabled: true
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "Enable IAM User Permissions"
+            Effect: "Allow"
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action:
+              - "kms:*"
+            Resource:
+              - "*"
+          - Sid: "Allow use of the key"
+            Effect: "Allow"
+            Principal:
+              AWS:
+                - !GetAtt rIamRolePipeline.Arn
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "kms:Encrypt"
+              - "kms:Decrypt"
+              - "kms:ReEncrypt*"
+              - "kms:GenerateDataKey"
+              - "kms:DescribeKey"
+            Resource:
+              - "*"
+      PendingWindowInDays: 7
+      Tags:
+        - Key: Name
+          Value: "KMS-Nested-Stacks"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rKmsKeyPipelineAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: "alias/NestedStackPipelines"
+      TargetKeyId: !GetAtt rKmsKeyPipeline.Arn
+  rIamRolePipeline:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codepipeline.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - !Ref rIamPolicyPipeline
+      RoleName: "Org-Nested-Stacks-Pipeline-Service-Role"
+      Tags:
+        - Key: Name
+          Value: "Org-Nested-Stacks-Pipeline-Service-Role"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rIamPolicyPipeline:
+    Type: AWS::IAM::ManagedPolicy
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: F5
+            reason: "To be fine grained."
+          - id: F40
+            reason: "To be fine grained."
+    Properties:
+      ManagedPolicyName: "Org-Nested-Stacks-Pipeline-Policy"
+      Path: "/"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "iam:PassRole"
+            Resource:
+              - "*"
+            Condition:
+              StringEqualsIfExists:
+                iam:PassedToService:
+                - "cloudformation.amazonaws.com"
+                - "elasticbeanstalk.amazonaws.com"
+                - "ec2.amazonaws.com"
+                - "ecs-task.amazonaws.com"
+          - Effect: "Allow"
+            Action:
+              - "codecommit:CancelUploadArchive"
+              - "codecommit:GetBranch"
+              - "codecommit:GetCommit"
+              - "codecommit:GetRepository"
+              - "codecommit:GetUploadArchiveStatus"
+              - "codecommit:UploadArchive"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "codedeploy:CreateDeployment"
+              - "codedeploy:GetApplication"
+              - "codedeploy:GetApplicationRevision"
+              - "codedeploy:GetDeployment"
+              - "codedeploy:GetDeploymentConfig"
+              - "codedeploy:RegisterApplicationRevision"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "codestar-connections:UseConnection"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "elasticbeanstalk:*"
+              - "ec2:*"
+              - "elasticloadbalancing:*"
+              - "autoscaling:*"
+              - "cloudwatch:*"
+              - "s3:*"
+              - "sns:*"
+              - "cloudformation:*"
+              - "rds:*"
+              - "sqs:*"
+              - "ecs:*"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "lambda:InvokeFunction"
+              - "lambda:ListFunctions"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "opsworks:CreateDeployment"
+              - "opsworks:DescribeApps"
+              - "opsworks:DescribeCommands"
+              - "opsworks:DescribeDeployments"
+              - "opsworks:DescribeInstances"
+              - "opsworks:DescribeStacks"
+              - "opsworks:UpdateApp"
+              - "opsworks:UpdateStack"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "cloudformation:CreateStack"
+              - "cloudformation:DeleteStack"
+              - "cloudformation:DescribeStacks"
+              - "cloudformation:UpdateStack"
+              - "cloudformation:CreateChangeSet"
+              - "cloudformation:DeleteChangeSet"
+              - "cloudformation:DescribeChangeSet"
+              - "cloudformation:ExecuteChangeSet"
+              - "cloudformation:SetStackPolicy"
+              - "cloudformation:ValidateTemplate"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "codebuild:BatchGetBuildBatches"
+              - "codebuild:StartBuild"
+              - "codebuild:BatchGetBuilds"
+              - "codebuild:StartBuildBatch"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "devicefarm:ListProjects"
+              - "devicefarm:ListDevicePools"
+              - "devicefarm:GetRun"
+              - "devicefarm:GetUpload"
+              - "devicefarm:CreateUpload"
+              - "devicefarm:ScheduleRun"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "servicecatalog:ListProvisioningArtifacts"
+              - "servicecatalog:CreateProvisioningArtifact"
+              - "servicecatalog:DescribeProvisioningArtifact"
+              - "servicecatalog:DeleteProvisioningArtifact"
+              - "servicecatalog:UpdateProduct"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "cloudformation:ValidateTemplate"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "ecr:DescribeImages"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "states:DescribeExecution"
+              - "states:DescribeStateMachine"
+              - "states:StartExecution"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "appconfig:StartDeployment"
+              - "appconfig:StopDeployment"
+              - "appconfig:GetDeployment"
+            Resource:
+              - "*"
+  rIamRoleBuildProject:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - !Ref rIamPolicyBuildProject
+      RoleName: "Org-Nested-Stacks-CodeBuild-Build-Service-Role"
+      Tags:
+        - Key: Name
+          Value: "Org-Nested-Stacks-CodeBuild-Build-Service-Role"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rIamPolicyBuildProject:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "Org-Nested-Stacks-CodeBuild-Build-Policy"
+      Path: "/"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "s3:PutObject"
+              - "s3:GetObject"
+              - "s3:GetObjectVersion"
+              - "s3:GetBucketAcl"
+              - "s3:GetBucketLocation"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${rS3PipelineArtifactBucket}"
+              - !Sub "arn:${AWS::Partition}:s3:::${rS3PipelineArtifactBucket}/*"
+          - Effect: "Allow"
+            Action:
+              - "codecommit:GitPull"
+            Resource:
+              - !GetAtt rCodeCommitNestedStacks.Arn
+          - Effect: "Allow"
+            Action:
+              - "codebuild:CreateReportGroup"
+              - "codebuild:CreateReport"
+              - "codebuild:UpdateReport"
+              - "codebuild:BatchPutTestCases"
+              - "codebuild:BatchPutCodeCoverages"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/*"
+          - Effect: "Allow"
+            Action:
+              - "kms:DescribeKey"
+              - "kms:GenerateDataKey"
+              - "kms:Encrypt"
+              - "kms:ReEncrypt*"
+              - "kms:Decrypt"
+            Resource:
+              - !GetAtt rKmsKeyPipeline.Arn
+          - Effect: "Allow"
+            Action:
+              - "cloudformation:ValidateTemplate"
+            Resource:
+              - "*"
+  rIamRoleEventBridgeTriggerPipeline:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - "events.amazonaws.com"
+              Action:
+                  - "sts:AssumeRole"
+        Path: "/"
+        ManagedPolicyArns:
+            - !Ref rIamPolicyEventBridgeTriggerPipeline
+        RoleName: "Org-Nested-Stacks-EventBridge-Service-Role"
+        Tags:
+          - Key: Name
+            Value: "Org-Nested-Stacks-EventBridge-Service-Role"
+          - Key: Environment
+            Value: !Ref pTagEnvironment
+          - Key: SDLC
+            Value: !Ref pTagSDLC
+          - Key: ApplicationName
+            Value: !Ref pTagApplicationName
+          - Key: ApplicationRole
+            Value: !Ref pTagApplicationRole
+          - Key: Cluster
+            Value: !Ref pTagCluster
+          - Key: DataClassification
+            Value: !Ref pTagDataClassification
+          - Key: Compliance
+            Value: !Ref pTagCompliance
+          - Key: DataRetention
+            Value: !Ref pTagDataRetention
+          - Key: map-migrated
+            Value: !Ref pTagMapMigrated
+          - Key: ProjectName
+            Value: !Ref pTagProjectName
+          - Key: ProductOwner
+            Value: !Ref pTagProductOwner
+          - Key: TechnicalOwner
+            Value: !Ref pTagTechnicalOwner
+          - Key: BusinessUnit
+            Value: !Ref pTagBusinessUnit
+          - Key: CostCenter
+            Value: !Ref pTagCostCenter
+          - Key: BusinessImpact
+            Value: !Ref pTagBusinessImpact
+          - Key: EscalationPath
+            Value: !Ref pTagEscalationPath
+          - Key: KnowledgeBase
+            Value: !Ref pTagKnowledgeBase
+          - Key: HoursOfOperation
+            Value: !Ref pTagHoursOfOperation
+          - Key: MaintenanceWindow
+            Value: !Ref pTagMaintenanceWindow
+          - Key: BackupSchedule
+            Value: !Ref pTagBackupSchedule
+          - Key: OptOut
+            Value: !Ref pTagOptOut
+          - Key: DeploymentMethod
+            Value: !Ref pTagDeploymentMethod
+  rIamPolicyEventBridgeTriggerPipeline:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "Org-Nested-Stacks-EventBridge-Service-Policy"
+      Path: "/"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "codepipeline:StartPipelineExecution"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${rCodePipelineNestedStacks}"
+  rEventBridgeRuleToTriggerPipeline:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - aws.codecommit
+        detail-type:
+          - 'CodeCommit Repository State Change'
+        resources:
+          - !GetAtt rCodeCommitNestedStacks.Arn
+        detail:
+          event:
+            - referenceCreated
+            - referenceUpdated
+          referenceType:
+            - branch
+          referenceName:
+            - main
+      Targets:
+        -
+          Arn:
+            !Sub "arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${rCodePipelineNestedStacks}"
+          RoleArn: !GetAtt rIamRoleEventBridgeTriggerPipeline.Arn
+          Id: codepipeline-NestedStacksPipeline
+  rCodeBuildNestedStacksBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: "NO_ARTIFACTS"
+      BadgeEnabled: false
+      Cache:
+        Type: "NO_CACHE"
+      Description: "Project to carry out build of CloudFormation Nested Stacks"
+      EncryptionKey: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
+        ImagePullCredentialsType: "CODEBUILD"
+        PrivilegedMode: true
+        Type: "ARM_CONTAINER"
+        EnvironmentVariables:
+          - Name: TEMPLATE_BUCKET
+            Value: !Ref rS3PipelineArtifactBucket
+      LogsConfig:
+        CloudWatchLogs:
+          Status: "ENABLED"
+      Name: "OrgNestedStacks-Build-CodeBuild"
+      QueuedTimeoutInMinutes: 480
+      ServiceRole: !GetAtt rIamRoleBuildProject.Arn
+      Source:
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: 3.11
+              commands:
+                - yum update -y
+                - pip install --upgrade pip
+                - python3 -m pip install awscliv2
+                - docker buildx build --builder graviton2 --platform linux/arm64 -t guard . --no-cache
+            build:
+              commands:
+                - echo Entered the build phase...
+                - ls
+                - bash scripts/build.sh $TEMPLATE_BUCKET
+            post_build:
+              on-failure: ABORT
+              commands:
+              - echo Entered the post_build phase...
+              - bash scripts/validate.sh
+          artifacts:
+            files:
+              - "**/*"
+            name: Packaged
+        GitCloneDepth: 1
+        GitSubmodulesConfig:
+          FetchSubmodules: false
+        InsecureSsl: false
+        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${rCodeCommitNestedStacks.Name}"
+        Type: "CODECOMMIT"
+      SourceVersion: "refs/heads/main"
+      Tags:
+        - Key: Name
+          Value: "Org-CodeBuild-Nested-Stacks-Build"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+      TimeoutInMinutes: 60
+  rIamRoleStackDeployment:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "cloudformation.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      RoleName: "Org-Nested-Stacks-CloudFormation-Service-Role"
+      Tags:
+        - Key: Name
+          Value: "Org-Nested-Stacks-CloudFormation-Service-Role"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rIamRoleDeployProject:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - !Ref rIamPolicyDeployProject
+      RoleName: "Org-Nested-Stacks-Deploy-CodeBuild-Service-Role"
+      Tags:
+        - Key: Name
+          Value: "Org-Nested-Stacks-Deploy-CodeBuild-Service-Role"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rIamPolicyDeployProject:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "Org-Nested-Stacks-Deploy-CodeBuild-Service-Policy"
+      Path: "/"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "s3:ListObject"
+              - "s3:PutObject"
+              - "s3:GetObject"
+              - "s3:GetObjectVersion"
+              - "s3:GetBucketAcl"
+              - "s3:GetBucketLocation"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${rS3PipelineArtifactBucket}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${rS3PipelineArtifactBucket}"
+          - Effect: "Allow"
+            Action:
+              - "codecommit:GitPull"
+            Resource:
+              - !GetAtt rCodeCommitNestedStacks.Arn
+          - Effect: "Allow"
+            Action:
+              - "codebuild:CreateReportGroup"
+              - "codebuild:CreateReport"
+              - "codebuild:UpdateReport"
+              - "codebuild:BatchPutTestCases"
+              - "codebuild:BatchPutCodeCoverages"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/*"
+          - Effect: "Allow"
+            Action:
+              - "kms:DescribeKey"
+              - "kms:GenerateDataKey"
+              - "kms:Encrypt"
+              - "kms:ReEncrypt*"
+              - "kms:Decrypt"
+            Resource:
+              - !GetAtt rKmsKeyPipeline.Arn
+          - Effect: "Allow"
+            Action:
+              - "iam:PassRole"
+            Resource:
+              - !GetAtt rIamRoleStackDeployment.Arn
+          - Effect: "Allow"
+            Action:
+              - "cloudformation:CreateStack"
+              - "cloudformation:DeleteStack"
+              - "cloudformation:TagResource"
+              - "cloudformation:UpdateStack"
+              - "cloudformation:CreateChangeSet"
+              - "cloudformation:UntagResource"
+              - "cloudformation:ExecuteChangeSet"
+              - "cloudformation:DeleteChangeSet"
+              - "cloudformation:DescribeStacks"
+              - "cloudformation:DescribeChangeSet"
+              - "cloudformation:GetTemplateSummary"
+              - "cloudformation:ValidateTemplate"
+            Resource:
+              - "*"
+  rCodeBuildNestedStacksDeploy:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: "NO_ARTIFACTS"
+      BadgeEnabled: false
+      Cache:
+        Type: "NO_CACHE"
+      Description: "Project to carry out deployment of CloudFormation Nested Stacks"
+      EncryptionKey: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
+        ImagePullCredentialsType: "CODEBUILD"
+        PrivilegedMode: true
+        Type: "ARM_CONTAINER"
+        EnvironmentVariables:
+          - Name: TEMPLATE_BUCKET
+            Value: !Ref rS3PipelineArtifactBucket
+          - Name: ROLE_ARN
+            Value: !GetAtt rIamRoleStackDeployment.Arn
+          - Name: NESTED_STACK_TEMPLATE_UPDATES
+            Value: !Ref pEnableBuildAutoNestedStackUpdates
+          - Name: SOLUTION_VERSION
+            Value: !Ref pSolutionVersion
+      LogsConfig:
+        CloudWatchLogs:
+          Status: "ENABLED"
+      Name: "OrgNestedStacks-Deployment-CodeBuild"
+      QueuedTimeoutInMinutes: 480
+      ServiceRole: !GetAtt rIamRoleDeployProject.Arn
+      Source:
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              commands:
+                - yum update -y
+                - pip install --upgrade pip
+                - python3 -m pip install awscliv2
+            build:
+              commands:
+                - ls
+                - bash scripts/deploy.sh $TEMPLATE_BUCKET $ROLE_ARN
+        GitCloneDepth: 1
+        GitSubmodulesConfig:
+          FetchSubmodules: false
+        InsecureSsl: false
+        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${rCodeCommitNestedStacks.Name}"
+        Type: "CODECOMMIT"
+      SourceVersion: "refs/heads/main"
+      Tags:
+        - Key: Name
+          Value: "Org-CodeBuild-Nested-Stacks-Deploy"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rCodePipelineNestedStacks:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        EncryptionKey:
+          Id: !GetAtt rKmsKeyPipeline.Arn
+          Type: "KMS"
+        Location: !Ref rS3PipelineArtifactBucket
+        Type: "S3"
+      Name: "Org-Nested-Stacks"
+      RestartExecutionOnUpdate: true
+      RoleArn: !GetAtt rIamRolePipeline.Arn
+      Stages:
+        - Name: "Source"
+          Actions:
+            - Name: "Source"
+              ActionTypeId:
+                Category: "Source"
+                Owner: "AWS"
+                Provider: "CodeCommit"
+                Version: "1"
+              Configuration:
+                BranchName: "main"
+                OutputArtifactFormat: "CODE_ZIP"
+                PollForSourceChanges: false
+                RepositoryName: !GetAtt rCodeCommitNestedStacks.Name
+              OutputArtifacts:
+                - Name: "SourceArtifact"
+              Region: !Ref AWS::Region
+              RunOrder: 1
+        - Name: "Build"
+          Actions:
+            - Name: "CodeBuild"
+              ActionTypeId:
+                Category: "Build"
+                Owner: "AWS"
+                Provider: "CodeBuild"
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref rCodeBuildNestedStacksBuild
+              InputArtifacts:
+                - Name: "SourceArtifact"
+              OutputArtifacts:
+                - Name: "Packaged"
+              Region: !Ref AWS::Region
+              RunOrder: 1
+        - Name: "Deploy"
+          Actions:
+            - Name: "CodeBuild"
+              ActionTypeId:
+                Category: "Build"
+                Owner: "AWS"
+                Provider: "CodeBuild"
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref rCodeBuildNestedStacksDeploy
+              InputArtifacts:
+                - Name: "Packaged"
+              Region: !Ref AWS::Region
+              RunOrder: 1
+      Tags:
+        - Key: Name
+          Value: "Org-Nested-Stacks"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
