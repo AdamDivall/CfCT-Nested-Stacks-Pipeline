@@ -1,0 +1,142 @@
+[
+    {
+        "ParameterKey": "pGLCTSolutionVersion",
+        "ParameterValue": "v1.0"
+    },
+    {
+        "ParameterKey": "pS3BaseURLForNestedTemplates",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pCodeCommitRepositoryName",
+        "ParameterValue": "Tenable"
+    },
+    {
+        "ParameterKey": "pECRRepositoryName",
+        "ParameterValue": "tenable"
+    },
+    {
+        "ParameterKey": "pVpcId",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pSubnetIds",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pCreateVpc",
+        "ParameterValue": "False"
+    },
+    {
+        "ParameterKey": "pVpcCidr",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pRootOrganizationalUnitId",
+        "ParameterValue": "/sra/control-tower/root-organizational-unit-id"
+    },
+    {
+        "ParameterKey": "pSecurityAccountId",
+        "ParameterValue": "/sra/control-tower/audit-account-id"
+    },
+    {
+        "ParameterKey": "pPrincipalAws",
+        "ParameterValue": "arn:aws:iam::012615275169:role/keyless_connector_role"
+    },
+    {
+        "ParameterKey": "pTenableAccIdForSHProduct",
+        "ParameterValue": "12345678910"
+    },
+    {
+        "ParameterKey": "pTenableExternalId",
+        "ParameterValue": "6e2981a5-dbb6-47cf-bebd-9037ad9c0e5c"
+    },
+    {
+        "ParameterKey": "pSecretEncryptionKMSKeyArn",
+        "ParameterValue": "arn:aws:kms:eu-west-2:012345678910:key/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    },
+    {
+        "ParameterKey": "pTagEnvironment",
+        "ParameterValue": "Production"
+    },
+    {
+        "ParameterKey": "pTagSDLC",
+        "ParameterValue": "Prod"
+    },
+    {
+        "ParameterKey": "pTagApplicationName",
+        "ParameterValue": "tenable"
+    },
+    {
+        "ParameterKey": "pTagApplicationRole",
+        "ParameterValue": "Security"
+    },
+    {
+        "ParameterKey": "pTagCluster",
+        "ParameterValue": "N/A"
+    },
+    {
+        "ParameterKey": "pTagDataClassification",
+        "ParameterValue": "Private"
+    },
+    {
+        "ParameterKey": "pTagDataRetention",
+        "ParameterValue": "365"
+    },
+    {
+        "ParameterKey": "pTagMapMigrated",
+        "ParameterValue": "N/A"
+    },
+    {
+        "ParameterKey": "pTagProjectName",
+        "ParameterValue": "tenable"
+    },
+    {
+        "ParameterKey": "pTagProductOwner",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagTechnicalOwner",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagCostCenter",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagBusinessUnit",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagBusinessImpact",
+        "ParameterValue": "Medium"
+    },
+    {
+        "ParameterKey": "pTagEscalationPath",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagKnowledgeBase",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagHoursOfOperation",
+        "ParameterValue": "24x7"
+    },
+    {
+        "ParameterKey": "pTagMaintenanceWindow",
+        "ParameterValue": "N/A"
+    },
+    {
+        "ParameterKey": "pTagBackupSchedule",
+        "ParameterValue": "N/A"
+    },
+    {
+        "ParameterKey": "pTagOptOut",
+        "ParameterValue": "False"
+    },
+    {
+        "ParameterKey": "pTagDeploymentMethod",
+        "ParameterValue": "CloudFormation"
+    }
+]

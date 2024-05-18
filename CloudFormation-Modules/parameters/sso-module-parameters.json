@@ -1,0 +1,126 @@
+[
+    {
+        "ParameterKey": "pGLCTSolutionVersion",
+        "ParameterValue": "v1.0"
+    },
+    {
+        "ParameterKey": "pS3BaseURLForNestedTemplates",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pSsoInstanceArn",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pSsoSessionDuration",
+        "ParameterValue": "PT8H"
+    },
+    {
+        "ParameterKey": "pRootOrganizationalUnitId",
+        "ParameterValue": "/sra/control-tower/root-organizational-unit-id"
+    },
+    {
+        "ParameterKey": "pMemberAccountIds",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pCreateIamIdentityCenterGroups",
+        "ParameterValue": "False"
+    },
+    {
+        "ParameterKey": "pSsoIdentityStoreId",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pSsoPrefix",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "pTagEnvironment",
+        "ParameterValue": "Production"
+    },
+    {
+        "ParameterKey": "pTagSDLC",
+        "ParameterValue": "Prod"
+    },
+    {
+        "ParameterKey": "pTagApplicationName",
+        "ParameterValue": "sso"
+    },
+    {
+        "ParameterKey": "pTagApplicationRole",
+        "ParameterValue": "Security"
+    },
+    {
+        "ParameterKey": "pTagCluster",
+        "ParameterValue": "N/A"
+    },
+    {
+        "ParameterKey": "pTagDataClassification",
+        "ParameterValue": "Private"
+    },
+    {
+        "ParameterKey": "pTagCompliance",
+        "ParameterValue": "N/A"
+    },
+    {
+        "ParameterKey": "pTagDataRetention",
+        "ParameterValue": "365"
+    },
+    {
+        "ParameterKey": "pTagMapMigrated",
+        "ParameterValue": "N/A"
+    },
+    {
+        "ParameterKey": "pTagProjectName",
+        "ParameterValue": "sso"
+    },
+    {
+        "ParameterKey": "pTagProductOwner",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagTechnicalOwner",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagCostCenter",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagBusinessUnit",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagBusinessImpact",
+        "ParameterValue": "Medium"
+    },
+    {
+        "ParameterKey": "pTagEscalationPath",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagKnowledgeBase",
+        "ParameterValue": "TBC"
+    },
+    {
+        "ParameterKey": "pTagHoursOfOperation",
+        "ParameterValue": "24x7"
+    },
+    {
+        "ParameterKey": "pTagMaintenanceWindow",
+        "ParameterValue": "N/A"
+    },
+    {
+        "ParameterKey": "pTagBackupSchedule",
+        "ParameterValue": "N/A"
+    },
+    {
+        "ParameterKey": "pTagOptOut",
+        "ParameterValue": "False"
+    },
+    {
+        "ParameterKey": "pTagDeploymentMethod",
+        "ParameterValue": "CloudFormation"
+    }
+]
