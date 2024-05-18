@@ -20,8 +20,8 @@ See each individual module located in this folder structure for more information
 
 | Solution | SourceCode | Documentation | Deployment Solution |
 | -------- | ---------- | ------------- | ------------------- |
-| SSO | [Code](/templates/SSO/)| [ReadMe](/templates/SSO/readme.md) | Nested Stacks Pipeline |
-| Prowler (Infrastructure) | [Code](/templates/Prowler/)| [ReadMe](/templates/Prowler/readme.md) | Nested Stacks Pipeline |
+| SSO | [Code](./templates/SSO/)| [ReadMe](./templates/SSO/readme.md) | Nested Stacks Pipeline |
+| Prowler (Infrastructure) | [Code](./templates/Prowler/)| [ReadMe](./templates/Prowler/readme.md) | Nested Stacks Pipeline |
 
 
 ## Solution Pipeline Process ##
