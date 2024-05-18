@@ -21,7 +21,6 @@ See each individual module located in this folder structure for more information
 | Solution | SourceCode | Documentation | Deployment Solution |
 | -------- | ---------- | ------------- | ------------------- |
 | SSO | [Code](./DevOps/Nested-Stacks-Pipeline/CloudFormation-Modules/templates/SSO/)| [ReadMe](./DevOps/Nested-Stacks-Pipeline/CloudFormation-Modules/templates/SSO/readme.md) | Nested Stacks Pipeline |
-| Tenable | [Code](./DevOps/Nested-Stacks-Pipeline/CloudFormation-Modules/templates/Tenable/)| [ReadMe](./DevOps/Nested-Stacks-Pipeline/CloudFormation-Modules/templates/Tenable/readme.md)  | Nested Stacks Pipeline |
 | VPC Flowlogs | [Code](./DevOps/Nested-Stacks-Pipeline/CloudFormation-Modules/templates/VPC-Flowlogs/)| [ReadMe](./DevOps/Nested-Stacks-Pipeline/CloudFormation-Modules/templates/VPC-Flowlogs/readme.md)  | Nested Stacks Pipeline |
 | Prowler (Infrastructure) | [Code](./DevOps/Nested-Stacks-Pipeline/CloudFormation-Modules/templates/Prowler/)| [ReadMe](./DevOps/Nested-Stacks-Pipeline/CloudFormation-Modules/templates/Prowler/readme.md) | Nested Stacks Pipeline |
 
