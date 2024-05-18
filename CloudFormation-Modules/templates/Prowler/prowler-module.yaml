@@ -1,0 +1,707 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "CloudFormation Template to resources required for setting up and running Prowler as a Fargate Container"
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: General Properties
+        Parameters:
+          - pGLCTSolutionVersion
+      - Label:
+          default: Prowler Configuration
+        Parameters:
+          - pCodeCommitRepositoryName
+          - pECRRepositoryName
+          - pVpcId
+          - pSubnetIds
+          - pCreateVpc
+          - pVpcCidr
+          - pHomeRegion
+          - pStandardProwlerReports
+          - pAdditionalProwlerReports
+          - pAdditionalProwlerReportsOUs
+      - Label:
+          default: Deployment Target Configurations
+        Parameters:
+          - pSecurityAccountId
+          - pRootOrganizationalUnitId
+          - pS3BaseURLForNestedTemplates
+      - Label:
+          default: Tagging Configuration
+        Parameters:
+          - pTagEnvironment
+          - pTagSDLC
+          - pTagApplicationName
+          - pTagApplicationRole
+          - pTagCluster
+          - pTagDataClassification
+          - pTagCompliance
+          - pTagDataRetention
+          - pTagMapMigrated
+          - pTagProjectName
+          - pTagProductOwner
+          - pTagTechnicalOwner
+          - pTagCostCenter
+          - pTagBusinessUnit
+          - pTagBusinessImpact
+          - pTagEscalationPath
+          - pTagKnowledgeBase
+          - pTagHoursOfOperation
+          - pTagMaintenanceWindow
+          - pTagBackupSchedule
+          - pTagOptOut
+          - pTagDeploymentMethod
+Parameters:
+  pGLCTSolutionVersion:
+    Description: The Global Logic solution version. Used to trigger updates on the nested StackSets.
+    Type: String
+  pCodeCommitRepositoryName:
+    Type: String
+    Description: Name of Prowler Code Commit Repository
+    Default: "Prowler"
+  pECRRepositoryName:
+    Type: String
+    Description: Name of Prowler ECR Repository
+    Default: "prowler"
+    AllowedPattern: '^(?=.{2,256}$)((?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*)$'
+    ConstraintDescription:
+     The repository name must start with a letter and can only contain lowercase letters, numbers, hyphens, underscores, and forward slashes.
+  pVpcId:
+    Type: String
+    Description: VPC Id to launch network resources in
+    Default: ""
+  pSubnetIds:
+    Type: String
+    Description: Comma-separated list of Subnet Ids
+    Default: ""
+  pCreateVpc:
+    Type: String
+    Description: Use this to deploy a VPC rather than an existing VPC Id to launch network resources in
+    AllowedValues:
+      - "True"
+      - "False"
+    Default: "False"
+  pVpcCidr:
+    Type: String
+    Description: The CIDR to be used for the VPC to be created if pCreateVpc = True to launch network resources in
+    Default: "192.168.0.0/24"
+  pHomeRegion:
+    Type: String
+    Description: Input the Home Region.
+    Default: ""
+  pStandardProwlerReports:
+    Type: String
+    Description: The standard compliance reports to run on all accounts.
+    Default: ""
+  pAdditionalProwlerReports:
+    Type: String
+    Description: The additional compliance reports to run on accounts in specified OU.
+    Default: ""
+  pAdditionalProwlerReportsOUs:
+    Type: String
+    Description: The specified OU for the additional compliance reports to run (Seperated by spaces).
+    Default: ""
+  pRootOrganizationalUnitId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM Parameter for Root Organizational Unit ID
+    AllowedPattern: '^([\w.-]{1,900})$|^(\/[\w.-]{1,900})*[\w.-]{1,900}$'
+    ConstraintDescription:
+      Must be alphanumeric or special characters [., _, -]. In addition, the slash character ( / ) used to delineate hierarchies in parameter names.
+    Default: /sra/control-tower/root-organizational-unit-id
+  pSecurityAccountId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM Parameter for AWS Security Account Id
+    AllowedPattern: '^([\w.-]{1,900})$|^(\/[\w.-]{1,900})*[\w.-]{1,900}$'
+    ConstraintDescription:
+      Must be alphanumeric or special characters [., _, -]. In addition, the slash character ( / ) used to delineate hierarchies in parameter names.
+    Default: /sra/control-tower/audit-account-id
+  pS3BaseURLForNestedTemplates:
+    Type: String
+    Description: "Base URL of S3 Bucket for storing Nested CloudFormation templates"
+
+  ##### Tagging Parameters
+  pTagEnvironment:
+    Type: String
+    Description: Select the Name of the Environment
+    AllowedValues:
+      - Production
+      - Non-Production
+    Default: Production
+  pTagSDLC:
+    Type: String
+    Description: Distinguish between SDLC Environments e.g., Dev, Test, SIT, UAT
+    AllowedValues:
+      - Dev
+      - Test
+      - SIT
+      - UAT
+      - Pre-Prod
+      - Prod
+    Default: Prod
+  pTagApplicationName:
+    Type: String
+    Description: Identify resources that are related to a specific application
+    Default: Prowler
+  pTagApplicationRole:
+    Type: String
+    Description: Identify the function of a particular resource e.g., Web Server, Message Broker, Database Server
+    Default: Security
+  pTagCluster:
+    Type: String
+    Description: Identify resource farms that share a common configuration and perform a specific function for an application
+    Default: "N/A"
+  pTagDataClassification:
+    Type: String
+    Description: Identify the specific data confidentiality level a resource supports
+    AllowedValues:
+      - Public
+      - Private
+      - Confidential
+      - Restricted
+    Default: Private
+  pTagCompliance:
+    Type: String
+    Description: Identify the specific compliance requirements that resources must adhere to e.g., PCI-DSS, HIPAA, ISO27001
+    Default: "N/A"
+  pTagDataRetention:
+    Type: String
+    Description: Identify the data retention policy applied to the resources (S3, ECR, CloudWatch Logs, EC2 AMI, EBS Snapshots, RDS Snapshot)
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 150
+      - 180
+      - 365
+      - 400
+      - 545
+      - 731
+      - 1827
+      - 3653
+    Default: 365
+  pTagMapMigrated:
+    Type: String
+    Description: Identify resources that have been migrated as part of the AWS Migration Acceleration Program (MAP) for funding purposes
+    Default: "N/A"
+  pTagProjectName:
+    Type: String
+    Description: Identify projects that the resource supports
+    Default: "Prowler"
+  pTagProductOwner:
+    Type: String
+    Description: Identify who is commercially responsible for the resource
+    Default: "TBC"
+  pTagTechnicalOwner:
+    Type: String
+    Description: Identify who is technically responsible for the resource
+    Default: "TBC"
+  pTagCostCenter:
+    Type: String
+    Description: Identify the cost center associated with a resource, typically for cost allocation and tracking
+    Default: "TBC"
+  pTagBusinessUnit:
+    Type: String
+    Description: Identify the business unit associated with a resource, typically for cost allocation and tracking
+    Default: "TBC"
+  pTagBusinessImpact:
+    Type: String
+    Description: Identify the business impact associated with the resource
+    AllowedValues:
+      - Critical
+      - High
+      - Medium
+      - Low
+    Default: Medium
+  pTagEscalationPath:
+    Type: String
+    Description: Identify the next point of contact for a resource in an incident e.g, DevOps Team, 3rd Party Company
+    Default: "TBC"
+  pTagKnowledgeBase:
+    Type: String
+    Description: Identifies the location for knowledge base articles/wikis for the resource
+    Default: "TBC"
+  pTagHoursOfOperation:
+    Type: String
+    Description: Identify the hours of operation for a resource e.g., 24*7, 06:00 - 22:00 Monday - Friday, 08:00 - 18:00 Monday - Friday
+    AllowedValues:
+      - 24x7
+      - 16x5
+      - 9x5
+    Default: 24x7
+  pTagMaintenanceWindow:
+    Type: String
+    Description: Identify the hours in which a resource is available for maintenance to occur
+    Default: "N/A"
+  pTagBackupSchedule:
+    Type: String
+    Description: Identify the backup schedule for a resource
+    Default: "N/A"
+  pTagOptOut:
+    Type: String
+    Description: Identify whether a resource should be excluded from maintenance activities e.g., True, False
+    AllowedValues:
+      - "True"
+      - "False"
+    Default: "False"
+  pTagDeploymentMethod:
+    Type: String
+    Description: Identify the method by which resources are deployed
+    AllowedValues:
+      - CloudFormation
+      - Terraform
+      - Manual
+    Default: CloudFormation
+Conditions:
+  CreateVpc: !Equals
+    - !Ref pCreateVpc
+    - "True"
+Resources:
+  rProwlerVpcStackSet:
+    Type: AWS::CloudFormation::StackSet
+    Condition: CreateVpc
+    Properties:
+      StackSetName: prowler-vpc
+      AutoDeployment:
+        Enabled: true
+        RetainStacksOnAccountRemoval: false
+      CallAs: SELF
+      Capabilities:
+        - CAPABILITY_NAMED_IAM
+      Description: "This Template will create the VPC for running Prowler as a Fargate container"
+      ManagedExecution:
+        Active: true
+      OperationPreferences:
+        FailureTolerancePercentage: 100
+        MaxConcurrentPercentage: 100
+        RegionConcurrencyType: PARALLEL
+      PermissionModel: SERVICE_MANAGED
+      StackInstancesGroup:
+        - DeploymentTargets:
+            AccountFilterType: INTERSECTION
+            OrganizationalUnitIds:
+              - !Ref pRootOrganizationalUnitId
+            Accounts:
+              - !Ref pSecurityAccountId
+          Regions:
+            - !Ref AWS::Region
+      TemplateURL: !Join ["", [!Ref pS3BaseURLForNestedTemplates, "prowler/nested/prowler-vpc.yaml"]]
+      Parameters:
+        - ParameterKey: pVpcCidr
+          ParameterValue: !Ref pVpcCidr
+        - ParameterKey: pGLCTSolutionVersion
+          ParameterValue: !Ref pGLCTSolutionVersion
+        ### tagging parameters
+        - ParameterKey: pTagEnvironment
+          ParameterValue: !Ref pTagEnvironment
+        - ParameterKey: pTagSDLC
+          ParameterValue: !Ref pTagSDLC
+        - ParameterKey: pTagApplicationName
+          ParameterValue: !Ref pTagApplicationName
+        - ParameterKey: pTagApplicationRole
+          ParameterValue: !Ref pTagApplicationRole
+        - ParameterKey: pTagCluster
+          ParameterValue: !Ref pTagCluster
+        - ParameterKey: pTagDataClassification
+          ParameterValue: !Ref pTagDataClassification
+        - ParameterKey: pTagCompliance
+          ParameterValue: !Ref pTagCompliance
+        - ParameterKey: pTagDataRetention
+          ParameterValue: !Ref pTagDataRetention
+        - ParameterKey: pTagMapMigrated
+          ParameterValue: !Ref pTagMapMigrated
+        - ParameterKey: pTagProjectName
+          ParameterValue: !Ref pTagProjectName
+        - ParameterKey: pTagProductOwner
+          ParameterValue: !Ref pTagProductOwner
+        - ParameterKey: pTagTechnicalOwner
+          ParameterValue: !Ref pTagTechnicalOwner
+        - ParameterKey: pTagCostCenter
+          ParameterValue: !Ref pTagCostCenter
+        - ParameterKey: pTagBusinessUnit
+          ParameterValue: !Ref pTagBusinessUnit
+        - ParameterKey: pTagBusinessImpact
+          ParameterValue: !Ref pTagBusinessImpact
+        - ParameterKey: pTagEscalationPath
+          ParameterValue: !Ref pTagEscalationPath
+        - ParameterKey: pTagKnowledgeBase
+          ParameterValue: !Ref pTagKnowledgeBase
+        - ParameterKey: pTagHoursOfOperation
+          ParameterValue: !Ref pTagHoursOfOperation
+        - ParameterKey: pTagMaintenanceWindow
+          ParameterValue: !Ref pTagMaintenanceWindow
+        - ParameterKey: pTagBackupSchedule
+          ParameterValue: !Ref pTagBackupSchedule
+        - ParameterKey: pTagOptOut
+          ParameterValue: !Ref pTagOptOut
+        - ParameterKey: pTagDeploymentMethod
+          ParameterValue: !Ref pTagDeploymentMethod
+  rProwlerReposAndPipelineStackSet:
+    Type: AWS::CloudFormation::StackSet
+    Properties:
+      StackSetName: prowler-repositories-and-pipeline
+      AutoDeployment:
+        Enabled: true
+        RetainStacksOnAccountRemoval: false
+      CallAs: SELF
+      Capabilities:
+        - CAPABILITY_NAMED_IAM
+      Description: "This Template will create Prowler Repositories and Pipeline for image building"
+      ManagedExecution:
+        Active: true
+      OperationPreferences:
+        FailureTolerancePercentage: 100
+        MaxConcurrentPercentage: 100
+        RegionConcurrencyType: PARALLEL
+      PermissionModel: SERVICE_MANAGED
+      StackInstancesGroup:
+        - DeploymentTargets:
+            AccountFilterType: INTERSECTION
+            OrganizationalUnitIds:
+              - !Ref pRootOrganizationalUnitId
+            Accounts:
+              - !Ref pSecurityAccountId
+          Regions:
+            - !Ref AWS::Region
+      TemplateURL: !Join ["", [!Ref pS3BaseURLForNestedTemplates, "prowler/nested/prowler-pipeline.yaml"]]
+      Parameters:
+        - ParameterKey: pGLCTSolutionVersion
+          ParameterValue: !Ref pGLCTSolutionVersion
+        - ParameterKey: pCodeCommitRepositoryName
+          ParameterValue: !Ref pCodeCommitRepositoryName
+        - ParameterKey: pECRRepositoryName
+          ParameterValue: !Ref pECRRepositoryName
+        - ParameterKey: pTagEnvironment
+          ParameterValue: !Ref pTagEnvironment
+        - ParameterKey: pTagSDLC
+          ParameterValue: !Ref pTagSDLC
+        - ParameterKey: pTagApplicationName
+          ParameterValue: !Ref pTagApplicationName
+        - ParameterKey: pTagApplicationRole
+          ParameterValue: !Ref pTagApplicationRole
+        - ParameterKey: pTagCluster
+          ParameterValue: !Ref pTagCluster
+        - ParameterKey: pTagDataClassification
+          ParameterValue: !Ref pTagDataClassification
+        - ParameterKey: pTagCompliance
+          ParameterValue: !Ref pTagCompliance
+        - ParameterKey: pTagDataRetention
+          ParameterValue: !Ref pTagDataRetention
+        - ParameterKey: pTagMapMigrated
+          ParameterValue: !Ref pTagMapMigrated
+        - ParameterKey: pTagProjectName
+          ParameterValue: !Ref pTagProjectName
+        - ParameterKey: pTagProductOwner
+          ParameterValue: !Ref pTagProductOwner
+        - ParameterKey: pTagTechnicalOwner
+          ParameterValue: !Ref pTagTechnicalOwner
+        - ParameterKey: pTagCostCenter
+          ParameterValue: !Ref pTagCostCenter
+        - ParameterKey: pTagBusinessUnit
+          ParameterValue: !Ref pTagBusinessUnit
+        - ParameterKey: pTagBusinessImpact
+          ParameterValue: !Ref pTagBusinessImpact
+        - ParameterKey: pTagEscalationPath
+          ParameterValue: !Ref pTagEscalationPath
+        - ParameterKey: pTagKnowledgeBase
+          ParameterValue: !Ref pTagKnowledgeBase
+        - ParameterKey: pTagHoursOfOperation
+          ParameterValue: !Ref pTagHoursOfOperation
+        - ParameterKey: pTagMaintenanceWindow
+          ParameterValue: !Ref pTagMaintenanceWindow
+        - ParameterKey: pTagBackupSchedule
+          ParameterValue: !Ref pTagBackupSchedule
+        - ParameterKey: pTagOptOut
+          ParameterValue: !Ref pTagOptOut
+        - ParameterKey: pTagDeploymentMethod
+          ParameterValue: !Ref pTagDeploymentMethod
+  rProwlerTaskRoleStackSet:
+    Type: AWS::CloudFormation::StackSet
+    Properties:
+      StackSetName: prowler-task-role
+      AutoDeployment:
+        Enabled: true
+        RetainStacksOnAccountRemoval: false
+      CallAs: SELF
+      Capabilities:
+        - CAPABILITY_NAMED_IAM
+      Description: "This Template will create IAM Role required by Prowler Fargate Container"
+      ManagedExecution:
+        Active: true
+      OperationPreferences:
+        FailureTolerancePercentage: 100
+        MaxConcurrentPercentage: 100
+        RegionConcurrencyType: PARALLEL
+      PermissionModel: SERVICE_MANAGED
+      StackInstancesGroup:
+        - DeploymentTargets:
+            AccountFilterType: INTERSECTION
+            OrganizationalUnitIds:
+              - !Ref pRootOrganizationalUnitId
+            Accounts:
+              - !Ref pSecurityAccountId
+          Regions:
+            - !Ref AWS::Region
+      TemplateURL: !Join ["", [!Ref pS3BaseURLForNestedTemplates, "prowler/nested/prowler-task-role.yaml"]]
+      Parameters:
+        - ParameterKey: pGLCTSolutionVersion
+          ParameterValue: !Ref pGLCTSolutionVersion
+        - ParameterKey: pTagEnvironment
+          ParameterValue: !Ref pTagEnvironment
+        - ParameterKey: pTagSDLC
+          ParameterValue: !Ref pTagSDLC
+        - ParameterKey: pTagApplicationName
+          ParameterValue: !Ref pTagApplicationName
+        - ParameterKey: pTagApplicationRole
+          ParameterValue: !Ref pTagApplicationRole
+        - ParameterKey: pTagCluster
+          ParameterValue: !Ref pTagCluster
+        - ParameterKey: pTagDataClassification
+          ParameterValue: !Ref pTagDataClassification
+        - ParameterKey: pTagCompliance
+          ParameterValue: !Ref pTagCompliance
+        - ParameterKey: pTagDataRetention
+          ParameterValue: !Ref pTagDataRetention
+        - ParameterKey: pTagMapMigrated
+          ParameterValue: !Ref pTagMapMigrated
+        - ParameterKey: pTagProjectName
+          ParameterValue: !Ref pTagProjectName
+        - ParameterKey: pTagProductOwner
+          ParameterValue: !Ref pTagProductOwner
+        - ParameterKey: pTagTechnicalOwner
+          ParameterValue: !Ref pTagTechnicalOwner
+        - ParameterKey: pTagCostCenter
+          ParameterValue: !Ref pTagCostCenter
+        - ParameterKey: pTagBusinessUnit
+          ParameterValue: !Ref pTagBusinessUnit
+        - ParameterKey: pTagBusinessImpact
+          ParameterValue: !Ref pTagBusinessImpact
+        - ParameterKey: pTagEscalationPath
+          ParameterValue: !Ref pTagEscalationPath
+        - ParameterKey: pTagKnowledgeBase
+          ParameterValue: !Ref pTagKnowledgeBase
+        - ParameterKey: pTagHoursOfOperation
+          ParameterValue: !Ref pTagHoursOfOperation
+        - ParameterKey: pTagMaintenanceWindow
+          ParameterValue: !Ref pTagMaintenanceWindow
+        - ParameterKey: pTagBackupSchedule
+          ParameterValue: !Ref pTagBackupSchedule
+        - ParameterKey: pTagOptOut
+          ParameterValue: !Ref pTagOptOut
+        - ParameterKey: pTagDeploymentMethod
+          ParameterValue: !Ref pTagDeploymentMethod
+  rProwlerRoleStackSet:
+    DependsOn:
+         - "rProwlerTaskRoleStackSet"
+    Type: AWS::CloudFormation::StackSet
+    Properties:
+      StackSetName: prowler-iam-role
+      AutoDeployment:
+        Enabled: true
+        RetainStacksOnAccountRemoval: false
+      CallAs: SELF
+      Capabilities:
+        - CAPABILITY_NAMED_IAM
+      Description: "This Template will create an IAM Role in all AWS Accounts assumeable by Security Account's Prowler container"
+      ManagedExecution:
+        Active: true
+      OperationPreferences:
+        FailureTolerancePercentage: 100
+        MaxConcurrentPercentage: 100
+        RegionConcurrencyType: PARALLEL
+      PermissionModel: SERVICE_MANAGED
+      StackInstancesGroup:
+        - DeploymentTargets:
+            OrganizationalUnitIds:
+              - !Ref pRootOrganizationalUnitId
+          Regions:
+            - !Ref AWS::Region
+      TemplateURL: !Join ["", [!Ref pS3BaseURLForNestedTemplates, "prowler/nested/prowler-role.yaml"]]
+      Parameters:
+        - ParameterKey: pSHAccountId
+          ParameterValue: !Ref pSecurityAccountId
+        - ParameterKey: pGLCTSolutionVersion
+          ParameterValue: !Ref pGLCTSolutionVersion
+        ### tagging parameters
+        - ParameterKey: pTagEnvironment
+          ParameterValue: !Ref pTagEnvironment
+        - ParameterKey: pTagSDLC
+          ParameterValue: !Ref pTagSDLC
+        - ParameterKey: pTagApplicationName
+          ParameterValue: !Ref pTagApplicationName
+        - ParameterKey: pTagApplicationRole
+          ParameterValue: !Ref pTagApplicationRole
+        - ParameterKey: pTagCluster
+          ParameterValue: !Ref pTagCluster
+        - ParameterKey: pTagDataClassification
+          ParameterValue: !Ref pTagDataClassification
+        - ParameterKey: pTagCompliance
+          ParameterValue: !Ref pTagCompliance
+        - ParameterKey: pTagDataRetention
+          ParameterValue: !Ref pTagDataRetention
+        - ParameterKey: pTagMapMigrated
+          ParameterValue: !Ref pTagMapMigrated
+        - ParameterKey: pTagProjectName
+          ParameterValue: !Ref pTagProjectName
+        - ParameterKey: pTagProductOwner
+          ParameterValue: !Ref pTagProductOwner
+        - ParameterKey: pTagTechnicalOwner
+          ParameterValue: !Ref pTagTechnicalOwner
+        - ParameterKey: pTagCostCenter
+          ParameterValue: !Ref pTagCostCenter
+        - ParameterKey: pTagBusinessUnit
+          ParameterValue: !Ref pTagBusinessUnit
+        - ParameterKey: pTagBusinessImpact
+          ParameterValue: !Ref pTagBusinessImpact
+        - ParameterKey: pTagEscalationPath
+          ParameterValue: !Ref pTagEscalationPath
+        - ParameterKey: pTagKnowledgeBase
+          ParameterValue: !Ref pTagKnowledgeBase
+        - ParameterKey: pTagHoursOfOperation
+          ParameterValue: !Ref pTagHoursOfOperation
+        - ParameterKey: pTagMaintenanceWindow
+          ParameterValue: !Ref pTagMaintenanceWindow
+        - ParameterKey: pTagBackupSchedule
+          ParameterValue: !Ref pTagBackupSchedule
+        - ParameterKey: pTagOptOut
+          ParameterValue: !Ref pTagOptOut
+        - ParameterKey: pTagDeploymentMethod
+          ParameterValue: !Ref pTagDeploymentMethod
+  rProwlerRoleStack:
+    DependsOn:
+        - "rProwlerTaskRoleStackSet"
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join ["", [!Ref pS3BaseURLForNestedTemplates, "prowler/nested/prowler-role.yaml"]]
+      Parameters:
+        pSHAccountId: !Ref pSecurityAccountId
+        pGLCTSolutionVersion: !Ref pGLCTSolutionVersion
+        #Tags
+        pTagEnvironment: !Ref pTagEnvironment
+        pTagSDLC: !Ref pTagSDLC
+        pTagApplicationName: !Ref pTagApplicationName
+        pTagApplicationRole: !Ref pTagApplicationRole
+        pTagCluster: !Ref pTagCluster
+        pTagDataClassification: !Ref pTagDataClassification
+        pTagCompliance: !Ref pTagCompliance
+        pTagDataRetention: !Ref pTagDataRetention
+        pTagMapMigrated: !Ref pTagMapMigrated
+        pTagProjectName: !Ref pTagProjectName
+        pTagProductOwner: !Ref pTagProductOwner
+        pTagTechnicalOwner: !Ref pTagTechnicalOwner
+        pTagCostCenter: !Ref pTagCostCenter
+        pTagBusinessUnit: !Ref pTagBusinessUnit
+        pTagBusinessImpact: !Ref pTagBusinessImpact
+        pTagEscalationPath: !Ref pTagEscalationPath
+        pTagKnowledgeBase: !Ref pTagKnowledgeBase
+        pTagHoursOfOperation: !Ref pTagHoursOfOperation
+        pTagMaintenanceWindow: !Ref pTagMaintenanceWindow
+        pTagBackupSchedule: !Ref pTagBackupSchedule
+        pTagOptOut: !Ref pTagOptOut
+        pTagDeploymentMethod: !Ref pTagDeploymentMethod
+  rWaitProwlerVpc:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    Metadata:
+      VpcReady: !If [CreateVpc, !Ref rProwlerVpcStackSet, !Ref AWS::NoValue]
+  rProwlerInfraStackSet:
+    DependsOn:
+         - "rProwlerReposAndPipelineStackSet"
+         - "rProwlerTaskRoleStackSet"
+         - "rProwlerRoleStackSet"
+         - "rProwlerRoleStack"
+         - "rWaitProwlerVpc"
+    Type: AWS::CloudFormation::StackSet
+    Properties:
+      StackSetName: prowler-infra
+      AutoDeployment:
+        Enabled: true
+        RetainStacksOnAccountRemoval: false
+      CallAs: SELF
+      Capabilities:
+        - CAPABILITY_NAMED_IAM
+      Description: "This Template will create the infrastructure for running Prowler as a Fargate container"
+      ManagedExecution:
+        Active: true
+      OperationPreferences:
+        FailureTolerancePercentage: 100
+        MaxConcurrentPercentage: 100
+        RegionConcurrencyType: PARALLEL
+      PermissionModel: SERVICE_MANAGED
+      StackInstancesGroup:
+        - DeploymentTargets:
+            AccountFilterType: INTERSECTION
+            OrganizationalUnitIds:
+              - !Ref pRootOrganizationalUnitId
+            Accounts:
+              - !Ref pSecurityAccountId
+          Regions:
+            - !Ref AWS::Region
+      TemplateURL: !Join ["", [!Ref pS3BaseURLForNestedTemplates, "prowler/nested/prowler-infra.yaml"]]
+      Parameters:
+        - ParameterKey: pGLCTSolutionVersion
+          ParameterValue: !Ref pGLCTSolutionVersion
+        - ParameterKey: pProwlerContainerUri
+          ParameterValue: !Sub "${pSecurityAccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${pECRRepositoryName}:latest"
+        - ParameterKey: pVpcId
+          ParameterValue: !Ref pVpcId
+        - ParameterKey: pSubnetIds
+          ParameterValue: !Ref pSubnetIds
+        - ParameterKey: pHomeRegion
+          ParameterValue: !Ref pHomeRegion
+        - ParameterKey: pStandardProwlerReports
+          ParameterValue: !Ref pStandardProwlerReports
+        - ParameterKey: pAdditionalProwlerReports
+          ParameterValue: !Ref pAdditionalProwlerReports
+        - ParameterKey: pAdditionalProwlerReportsOUs
+          ParameterValue: !Ref pAdditionalProwlerReportsOUs
+
+        ### tagging parameters
+        - ParameterKey: pTagEnvironment
+          ParameterValue: !Ref pTagEnvironment
+        - ParameterKey: pTagSDLC
+          ParameterValue: !Ref pTagSDLC
+        - ParameterKey: pTagApplicationName
+          ParameterValue: !Ref pTagApplicationName
+        - ParameterKey: pTagApplicationRole
+          ParameterValue: !Ref pTagApplicationRole
+        - ParameterKey: pTagCluster
+          ParameterValue: !Ref pTagCluster
+        - ParameterKey: pTagDataClassification
+          ParameterValue: !Ref pTagDataClassification
+        - ParameterKey: pTagCompliance
+          ParameterValue: !Ref pTagCompliance
+        - ParameterKey: pTagDataRetention
+          ParameterValue: !Ref pTagDataRetention
+        - ParameterKey: pTagMapMigrated
+          ParameterValue: !Ref pTagMapMigrated
+        - ParameterKey: pTagProjectName
+          ParameterValue: !Ref pTagProjectName
+        - ParameterKey: pTagProductOwner
+          ParameterValue: !Ref pTagProductOwner
+        - ParameterKey: pTagTechnicalOwner
+          ParameterValue: !Ref pTagTechnicalOwner
+        - ParameterKey: pTagCostCenter
+          ParameterValue: !Ref pTagCostCenter
+        - ParameterKey: pTagBusinessUnit
+          ParameterValue: !Ref pTagBusinessUnit
+        - ParameterKey: pTagBusinessImpact
+          ParameterValue: !Ref pTagBusinessImpact
+        - ParameterKey: pTagEscalationPath
+          ParameterValue: !Ref pTagEscalationPath
+        - ParameterKey: pTagKnowledgeBase
+          ParameterValue: !Ref pTagKnowledgeBase
+        - ParameterKey: pTagHoursOfOperation
+          ParameterValue: !Ref pTagHoursOfOperation
+        - ParameterKey: pTagMaintenanceWindow
+          ParameterValue: !Ref pTagMaintenanceWindow
+        - ParameterKey: pTagBackupSchedule
+          ParameterValue: !Ref pTagBackupSchedule
+        - ParameterKey: pTagOptOut
+          ParameterValue: !Ref pTagOptOut
+        - ParameterKey: pTagDeploymentMethod
+          ParameterValue: !Ref pTagDeploymentMethod

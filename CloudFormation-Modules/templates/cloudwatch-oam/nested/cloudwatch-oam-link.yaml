@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: General Properties
+        Parameters:
+          - pGLCTSolutionVersion
+      - Label:
+          default: Amazon CloudWatch Observability Access Manager setup
+        Parameters:
+          - pMonitoringAccountId
+          - pManagementAccountId
+          - pRootOrganizationalUnitId
+          - pOrganizationId
+Parameters:
+  pMonitoringAccountId:
+    Type: String
+    Description: Monitoring Account ID, Used for the Org Observability
+    AllowedPattern: "^[0-9]{12}$"
+    ConstraintDescription: "This must be a 12 character string."
+    MinLength: 12
+    MaxLength: 12
+  pSinkSSMSharedParameterArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter Arn for the shared parameter
+  pGLCTSolutionVersion:
+    Description: The Global Logic solution version. Used to trigger updates on the nested StackSets.
+    Type: String
+
+Conditions:
+  cSkipMonitoringAccount: !Not
+    - !Equals
+      - !Ref AWS::AccountId
+      - !Ref pMonitoringAccountId
+
+Resources:
+  rLink:
+    Type: AWS::Oam::Link
+    Condition: cSkipMonitoringAccount
+    Properties:
+      LabelTemplate: "$AccountName"
+      ResourceTypes:
+        - "AWS::CloudWatch::Metric"
+        - "AWS::Logs::LogGroup"
+        - "AWS::XRay::Trace"
+        - "AWS::ApplicationInsights::Application"
+        - "AWS::InternetMonitor::Monitor"
+      SinkIdentifier: !Ref pSinkSSMSharedParameterArn
+

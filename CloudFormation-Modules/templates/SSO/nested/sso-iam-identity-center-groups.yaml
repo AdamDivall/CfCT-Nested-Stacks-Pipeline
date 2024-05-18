@@ -1,0 +1,102 @@
+######################################################################################################################################################
+### Steps to update (New Account)
+### 1. Add the Account Name to the mappings section using the same <ACCOUNT_NAME>. This should be the shortened name e.g. If the account is named 'GL-SHR-Management' then we would simply add 'Management'
+### 2. Create a new Account block from the template and add the relevant mappings for the PermissionSets and the SDLC's. This will enable us to create IAM Identity Center Groups based on each Permission Set and SDLC Environment.
+######################################################################################################################################################
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Template to Create Local IAM Identity Center Groups in the absence of Federating with External Identity Provider.
+Transform: 'AWS::LanguageExtensions'
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: General Properties
+        Parameters:
+          - pGLCTSolutionVersion
+      - Label:
+          default: SSO Configuration
+        Parameters:
+          - pIdentityStoreId
+          - pPrefix
+Parameters:
+  pGLCTSolutionVersion:
+    Description: The Global Logic solution version. Used to trigger updates on the nested StackSets.
+    Type: String
+  pIdentityStoreId:
+    Type: String
+    Description: The Id of the IAM Identity Center Identity Store.
+  pPrefix:
+    Type: String
+    Description: The Prefix to be used for Across all Groups for naming purposes.
+Mappings:
+# AWS Accounts to Create Groups for List (Names)
+  AccountList:
+    Accounts:
+      Names:
+        - Management
+        - LogArchive
+        - Security
+  Management:
+    Assignments:
+      PermissionSets:
+        - AdministratorAccess
+        - CustomReadOnly
+    Environment:
+      SDLC:
+        - SHR
+  LogArchive:
+    Assignments:
+      PermissionSets:
+        - AdministratorAccess
+        - CustomReadOnly
+    Environment:
+      SDLC:
+        - SHR
+  Security:
+    Assignments:
+      PermissionSets:
+        - AdministratorAccess
+        - CustomReadOnly
+    Environment:
+      SDLC:
+        - SHR
+# EXAMPLE ACCOUNT MAPPING BLOCK
+  # <ACCOUNT_NAME>: # This should match the Account Name in the AccountList
+  #   Assignments:
+  #     PermissionSets:
+  #       - AdministratorAccess
+  #       - CustomReadOnly
+  #       - <NEW_PERMISSION_SET_NAME>
+  #   Environment:
+  #     SDLC:
+  #       - <SDLC> # This should be a list of each of the SDLC Environments that you want IAM Identity Center Groups created for. Note - This is on the assumption that Environments are in separated AWS Accounts.
+Resources:
+  'Fn::ForEach::SSOGroupCreation':
+    - Account
+    - 'Fn::FindInMap':
+      - AccountList
+      - Accounts
+      - Names
+    - 'Fn::ForEach::PermissionSets':
+      - PermissionSet
+      - 'Fn::FindInMap':
+        - Ref: Account
+        - Assignments
+        - PermissionSets
+      - 'Fn::ForEach::Environment':
+        - SDLC
+        - 'Fn::FindInMap':
+          - Ref: Account
+          - Environment
+          - SDLC
+        - 'rGroup${SDLC}${Account}${PermissionSet}':
+            Type: AWS::IdentityStore::Group
+            Properties:
+              IdentityStoreId: !Ref pIdentityStoreId
+              DisplayName: !Join
+                - "-"
+                - - Ref: pPrefix
+                  - Ref: SDLC
+                  - Ref: Account
+                  - Ref: PermissionSet

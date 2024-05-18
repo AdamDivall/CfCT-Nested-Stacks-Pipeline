@@ -1,0 +1,612 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This Template will create the infrastructure for running Prowler as a Fargate container
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: General Properties
+        Parameters:
+          - pGLCTSolutionVersion
+      - Label:
+          default: Prowler Config
+        Parameters:
+          - pProwlerContainerUri
+          - pVpcId
+          - pSubnetIds
+          - pHomeRegion
+          - pStandardProwlerReports
+          - pAdditionalProwlerReports
+          - pAdditionalProwlerReportsOUs
+      - Label:
+          default: Tagging Configuration
+        Parameters:
+          - pTagEnvironment
+          - pTagSDLC
+          - pTagApplicationName
+          - pTagApplicationRole
+          - pTagCluster
+          - pTagDataClassification
+          - pTagCompliance
+          - pTagDataRetention
+          - pTagMapMigrated
+          - pTagProjectName
+          - pTagProductOwner
+          - pTagTechnicalOwner
+          - pTagCostCenter
+          - pTagBusinessUnit
+          - pTagBusinessImpact
+          - pTagEscalationPath
+          - pTagKnowledgeBase
+          - pTagHoursOfOperation
+          - pTagMaintenanceWindow
+          - pTagBackupSchedule
+          - pTagOptOut
+          - pTagDeploymentMethod
+Parameters:
+  pGLCTSolutionVersion:
+    Description: The Global Logic solution version. Used to trigger updates on the nested StackSets.
+    Type: String
+  pProwlerContainerUri:
+    Type: String
+    Description: ECR URI of the Prowler container
+  pVpcId:
+    Type: String
+    Description: Select a VPC.
+    Default: ""
+  pSubnetIds:
+    Type: String
+    Description: Input at least two subnets in your selected VPC, in comma-separated format.
+    Default: ""
+  pHomeRegion:
+    Type: String
+    Description: Input the Home Region.
+    Default: ""
+  pStandardProwlerReports:
+    Type: String
+    Description: The standard compliance reports to run on all accounts.
+    Default: ""
+  pAdditionalProwlerReports:
+    Type: String
+    Description: The additional compliance reports to run on accounts in specified OU.
+    Default: ""
+  pAdditionalProwlerReportsOUs:
+    Type: String
+    Description: The specified OU for the additional compliance reports to run.
+    Default: ""
+  pTagEnvironment:
+    Type: String
+    Description: Select the Name of the Environment
+    AllowedValues:
+      - Production
+      - Non-Production
+  pTagSDLC:
+    Type: String
+    Description: Distinguish between SDLC Environments e.g., Dev, Test, SIT, UAT
+    AllowedValues:
+      - Dev
+      - Test
+      - SIT
+      - UAT
+      - Pre-Prod
+      - Prod
+  pTagApplicationName:
+    Type: String
+    Description: Identify resources that are related to a specific application
+  pTagApplicationRole:
+    Type: String
+    Description: Identify the function of a particular respource e.g., Web Server, Message Broker, Database Server
+  pTagCluster:
+    Type: String
+    Description: Identify resource farms that share a common configuration and perform a specific function for an application
+  pTagDataClassification:
+    Type: String
+    Description: Identify the specific data confidentiality level a resource supports
+    AllowedValues:
+      - Public
+      - Private
+      - Confidential
+      - Restricted
+    Default: Private
+  pTagCompliance:
+    Type: String
+    Description: Identify the specific compliance requirements that resources must adhere to e.g., PCI-DSS, HIPAA, ISO27001
+  pTagDataRetention:
+    Type: String
+    Description: Identify the data retention policy applied to the resources (S3, ECR, CloudWatch Logs, EC2 AMI, EBS Snapshots, RDS Snapshot)
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 150
+      - 180
+      - 365
+      - 400
+      - 545
+      - 731
+      - 1827
+      - 3653
+  pTagMapMigrated:
+    Type: String
+    Description: Identify resources that have been migrated as part of the AWS Migration Acceleration Program (MAP) for funding purposes
+  pTagProjectName:
+    Type: String
+    Description: Identify projects that the resource supports
+  pTagProductOwner:
+    Type: String
+    Description: Identify who is commercially responsible for the resource
+  pTagTechnicalOwner:
+    Type: String
+    Description: Identify who is technically responsible for the resource
+  pTagCostCenter:
+    Type: String
+    Description: Identify the cost center associated with a resource, typically for cost allocation and tracking
+  pTagBusinessUnit:
+    Type: String
+    Description: Identify the business unit associated with a resource, typically for cost allocation and tracking
+  pTagBusinessImpact:
+    Type: String
+    Description: Identify the business impact associated with the resource
+    AllowedValues:
+      - Critical
+      - High
+      - Medium
+      - Low
+    Default: Medium
+  pTagEscalationPath:
+    Type: String
+    Description: Identify the next point of contact for a resource in an incident e.g, DevOps Team, 3rd Party Company
+  pTagKnowledgeBase:
+    Type: String
+    Description: Identifies the location for knowledge base articles/wikis for the resource
+  pTagHoursOfOperation:
+    Type: String
+    Description: Identify the hours of operation for a resource e.g., 24*7, 06:00 - 22:00 Monday - Friday, 08:00 - 18:00 Monday - Friday
+    AllowedValues:
+      - 24x7
+      - 16x5
+      - 9x5
+    Default: 24x7
+  pTagMaintenanceWindow:
+    Type: String
+    Description: Identify the hours in which a resource is available for maintenance to occur
+  pTagBackupSchedule:
+    Type: String
+    Description: Identify the backup schedule for a resource
+  pTagOptOut:
+    Type: String
+    Description: Identify whether a resource should be excluded from maintenance activities e.g., True, False
+    AllowedValues:
+      - "True"
+      - "False"
+    Default: "False"
+  pTagDeploymentMethod:
+    Type: String
+    Description: Identify the method by which resources are deployed
+    AllowedValues:
+      - CloudFormation
+      - Terraform
+      - Manual
+    Default: CloudFormation
+Conditions:
+  UseExistingVpc: !Not [!Equals [!Ref pVpcId, ""]]
+Resources:
+  rProwlerECSCloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join [ "-", [ ProwlerContainer, !Ref 'AWS::StackName' ] ]
+      RetentionInDays: !Ref pTagDataRetention
+      Tags:
+        - Key: Name
+          Value: !Sub ${pTagApplicationName}-${pTagSDLC}-ProwlerContainer
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rProwlerECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: Prowler
+      Tags:
+        - Key: Name
+          Value: !Sub ${pTagApplicationName}-${pTagSDLC}-Prowler
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rProwlerECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        -
+          Image: !Ref pProwlerContainerUri
+          Name: ProwlerContainer
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref rProwlerECSCloudWatchLogsGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: ecs
+          Environment:
+            - name: "HOME_REGION"
+              value: !Ref pHomeRegion
+            - name: "STANDARD_REPORTS"
+              value: !Ref pStandardProwlerReports
+            - name: "ADDITIONAL_COMPLIANCE_REPORTS"
+              value: !Ref pAdditionalProwlerReports
+            - name: "ADDITIONAL_COMPLIANCE_OUS"
+              value: !Ref pAdditionalProwlerReportsOUs
+      Cpu: 2048
+      ExecutionRoleArn: !GetAtt rProwlerExecutionRole.Arn
+      Memory: 4096
+      NetworkMode: awsvpc
+      TaskRoleArn: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ProwlerTaskRole"
+      Family: ProwlerToSecurityHubTask
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+      Tags:
+        - Key: Name
+          Value: !Sub ${pTagApplicationName}-${pTagSDLC}-ProwlerContainer
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rProwlerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: ECS Prowler Security Group
+      VpcId: !If [UseExistingVpc, !Ref pVpcId, !ImportValue StackSet-prowler-vpc-VpcId]
+      Tags:
+        - Key: Name
+          Value: !Sub ECSProwlerSG-${pTagApplicationName}-${pTagSDLC}
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rProwlerSecurityGroupHTTPsoutbound:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref rProwlerSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+  rCWEventECSTriggerRole:
+    Type: 'AWS::IAM::Role'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: F38
+            reason: "For passing role to ECS Service"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "events.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      Policies:
+        - PolicyName: RunECSTask
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: "RunECSTask"
+                Effect: "Allow"
+                Action:
+                  - "ecs:RunTask"
+                Resource: !Ref rProwlerECSTaskDefinition
+                Condition:
+                  ArnLike:
+                    ecs:cluster: !GetAtt rProwlerECSCluster.Arn
+              - Sid: "PassRole"
+                Effect: "Allow"
+                Action:
+                  - "iam:PassRole"
+                Resource: "*"
+                Condition:
+                  StringLike:
+                    iam:PassedToService: "ecs-tasks.amazonaws.com"
+      Tags:
+        - Key: Name
+          Value: !Sub ${pTagApplicationName}-${pTagSDLC}-CWEventRoleToTriggerProwler
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rProwlerTaskScheduler:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: "cron(5 0 * * ? *)"
+      State: ENABLED
+      Name: TriggerProwlerContainer
+      Description: CloudWatch Rule to trigger Prowler Container for scanning AWS Infra
+      Targets:
+        - Arn: !GetAtt rProwlerECSCluster.Arn
+          RoleArn: !GetAtt rCWEventECSTriggerRole.Arn
+          Id: prowlerTaskScheduler
+          EcsParameters:
+            TaskDefinitionArn: !Ref rProwlerECSTaskDefinition
+            TaskCount: 1
+            LaunchType: FARGATE
+            PlatformVersion: 'LATEST'
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                AssignPublicIp: ENABLED
+                SecurityGroups:
+                  - !Ref rProwlerSecurityGroup
+                Subnets: !Split [",", !If [UseExistingVpc, !Ref pSubnetIds, !ImportValue StackSet-prowler-vpc-SubnetIds]]
+  rProwlerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      Tags:
+        - Key: Name
+          Value: !Sub ${pTagApplicationName}-${pTagSDLC}-ProwlerECSExecutionRole
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod

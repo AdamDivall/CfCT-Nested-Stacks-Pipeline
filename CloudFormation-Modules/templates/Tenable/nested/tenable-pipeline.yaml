@@ -1,0 +1,603 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This Template will create Tenable Repositories and Pipeline for image building
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: General Properties
+        Parameters:
+          - pGLCTSolutionVersion
+      - Label:
+          default: Tenable Repositories Configuration
+        Parameters:
+          - pCodeCommitRepositoryName
+          - pECRRepositoryName
+      - Label:
+          default: Tagging Configuration
+        Parameters:
+          - pTagEnvironment
+          - pTagSDLC
+          - pTagApplicationName
+          - pTagApplicationRole
+          - pTagCluster
+          - pTagDataClassification
+          - pTagCompliance
+          - pTagDataRetention
+          - pTagMapMigrated
+          - pTagProjectName
+          - pTagProductOwner
+          - pTagTechnicalOwner
+          - pTagCostCenter
+          - pTagBusinessUnit
+          - pTagBusinessImpact
+          - pTagEscalationPath
+          - pTagKnowledgeBase
+          - pTagHoursOfOperation
+          - pTagMaintenanceWindow
+          - pTagBackupSchedule
+          - pTagOptOut
+          - pTagDeploymentMethod
+Parameters:
+  pCodeCommitRepositoryName:
+    Type: String
+    Description: "Name of Code Commit Repository"
+    Default: "Tenable"
+  pECRRepositoryName:
+    Type: String
+    Description: Name of ECR Repository
+    AllowedPattern: '^(?=.{2,256}$)((?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*)$'
+    ConstraintDescription:
+     The repository name must start with a letter and can only contain lowercase letters, numbers, hyphens, underscores, and forward slashes.
+  pGLCTSolutionVersion:
+    Description: The Global Logic solution version. Used to trigger updates on the nested StackSets.
+    Type: String
+  ##### Tagging Parameters
+  pTagEnvironment:
+    Type: String
+    Description: Select the Name of the Environment
+    AllowedValues:
+      - Production
+      - Non-Production
+  pTagSDLC:
+    Type: String
+    Description: Distinguish between SDLC Environments e.g., Dev, Test, SIT, UAT
+    AllowedValues:
+      - Dev
+      - Test
+      - SIT
+      - UAT
+      - Pre-Prod
+      - Prod
+  pTagApplicationName:
+    Type: String
+    Description: Identify resources that are related to a specific application
+  pTagApplicationRole:
+    Type: String
+    Description: Identify the function of a particular resource e.g., Web Server, Message Broker, Database Server
+  pTagCluster:
+    Type: String
+    Description: Identify resource farms that share a common configuration and perform a specific function for an application
+  pTagDataClassification:
+    Type: String
+    Description: Identify the specific data confidentiality level a resource supports
+    AllowedValues:
+      - Public
+      - Private
+      - Confidential
+      - Restricted
+    Default: Private
+  pTagCompliance:
+    Type: String
+    Description: Identify the specific compliance requirements that resources must adhere to e.g., PCI-DSS, HIPAA, ISO27001
+  pTagDataRetention:
+    Type: String
+    Description: Identify the data retention policy applied to the resources (S3, ECR, CloudWatch Logs, EC2 AMI, EBS Snapshots, RDS Snapshot)
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 150
+      - 180
+      - 365
+      - 400
+      - 545
+      - 731
+      - 1827
+      - 3653
+  pTagMapMigrated:
+    Type: String
+    Description: Identify resources that have been migrated as part of the AWS Migration Acceleration Program (MAP) for funding purposes
+  pTagProjectName:
+    Type: String
+    Description: Identify projects that the resource supports
+  pTagProductOwner:
+    Type: String
+    Description: Identify who is commercially responsible for the resource
+  pTagTechnicalOwner:
+    Type: String
+    Description: Identify who is technically responsible for the resource
+  pTagCostCenter:
+    Type: String
+    Description: Identify the cost center associated with a resource, typically for cost allocation and tracking
+  pTagBusinessUnit:
+    Type: String
+    Description: Identify the business unit associated with a resource, typically for cost allocation and tracking
+  pTagBusinessImpact:
+    Type: String
+    Description: Identify the business impact associated with the resource
+    AllowedValues:
+      - Critical
+      - High
+      - Medium
+      - Low
+    Default: Medium
+  pTagEscalationPath:
+    Type: String
+    Description: Identify the next point of contact for a resource in an incident e.g, DevOps Team, 3rd Party Company
+  pTagKnowledgeBase:
+    Type: String
+    Description: Identifies the location for knowledge base articles/wikis for the resource
+  pTagHoursOfOperation:
+    Type: String
+    Description: Identify the hours of operation for a resource e.g., 24*7, 06:00 - 22:00 Monday - Friday, 08:00 - 18:00 Monday - Friday
+    AllowedValues:
+      - 24x7
+      - 16x5
+      - 9x5
+    Default: 24x7
+  pTagMaintenanceWindow:
+    Type: String
+    Description: Identify the hours in which a resource is available for maintenance to occur
+  pTagBackupSchedule:
+    Type: String
+    Description: Identify the backup schedule for a resource
+  pTagOptOut:
+    Type: String
+    Description: Identify whether a resource should be excluded from maintenance activities e.g., True, False
+    AllowedValues:
+      - "True"
+      - "False"
+    Default: "False"
+  pTagDeploymentMethod:
+    Type: String
+    Description: Identify the method by which resources are deployed
+    AllowedValues:
+      - CloudFormation
+      - Terraform
+      - Manual
+    Default: CloudFormation
+Resources:
+  rECRRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      EmptyOnDelete: true
+      EncryptionConfiguration:
+        EncryptionType: KMS
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      RepositoryName: !Ref pECRRepositoryName
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "action": {
+                  "type": "expire"
+                },
+                "selection": {
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 1,
+                  "tagStatus": "untagged"
+                },
+                "description": "Keep only 1 tagged image at a time",
+                "rulePriority": 1
+              },
+              {
+                "action": {
+                  "type": "expire"
+                },
+                "selection": {
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 1,
+                  "tagStatus": "any"
+                },
+                "description": "Keep maximum 1 image at a time",
+                "rulePriority": 2
+              }
+            ]
+          }
+      Tags:
+        - Key: Name
+          Value: !Sub ${pECRRepositoryName}
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rCodeCommit:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryDescription: "Repository for Tenable docker files"
+      RepositoryName: !Sub ${pCodeCommitRepositoryName}
+      Tags:
+        - Key: Name
+          Value: !Sub Org-${pECRRepositoryName}
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rIamRoleBuildProject:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - !Ref rIamPolicyBuildProject
+      RoleName: "Tenable-Build-CodeBuild-Service-Role"
+      Tags:
+        - Key: Name
+          Value: "Tenable-Build-CodeBuild-Service-Role"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rIamPolicyBuildProject:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "Tenable-Build-CodeBuild-Policy"
+      Path: "/"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:CompleteLayerUpload"
+              - "ecr:GetAuthorizationToken"
+              - "ecr:InitiateLayerUpload"
+              - "ecr:PutImage"
+              - "ecr:UploadLayerPart"
+            Resource:
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "codecommit:GitPull"
+            Resource:
+              - !GetAtt rCodeCommit.Arn
+          - Effect: "Allow"
+            Action:
+              - "codebuild:CreateReportGroup"
+              - "codebuild:CreateReport"
+              - "codebuild:UpdateReport"
+              - "codebuild:BatchPutTestCases"
+              - "codebuild:BatchPutCodeCoverages"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/*"
+  rCWEventTriggerProwlerBuildRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "events.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      Policies:
+        - PolicyName: RunProwlerImageBuild
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "codebuild:StartBuild"
+                Resource: !GetAtt rCodeBuild.Arn
+      Tags:
+        - Key: Name
+          Value: !Sub ${pTagApplicationName}-${pTagSDLC}-CWEventRoleToTriggerProwlerBuild
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod
+  rTriggerProwlerBuild:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.codecommit"
+        detail-type:
+          - "CodeCommit Repository State Change"
+        resources:
+          - !GetAtt rCodeCommit.Arn
+        detail:
+          referenceType:
+            - branch
+          referenceName:
+            - master
+      State: ENABLED
+      Name: TriggerProwlerBuild
+      Description: CloudWatch Rule to trigger CodeBuild project for building Tenable Image
+      Targets:
+        - Arn: !GetAtt rCodeBuild.Arn
+          RoleArn: !GetAtt rCWEventTriggerProwlerBuildRole.Arn
+          Id: ProwlerImageBuilder
+  rCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: "NO_ARTIFACTS"
+      BadgeEnabled: false
+      Cache:
+        Type: "NO_CACHE"
+      Description: "Project to build Tenable image"
+      EncryptionKey: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
+        ImagePullCredentialsType: "CODEBUILD"
+        PrivilegedMode: true
+        Type: "ARM_CONTAINER"
+      LogsConfig:
+        CloudWatchLogs:
+          Status: "ENABLED"
+      Name: "Tenable-Build-CodeBuild"
+      QueuedTimeoutInMinutes: 480
+      ServiceRole: !GetAtt rIamRoleBuildProject.Arn
+      Source:
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - echo Logging in to Amazon ECR...
+                - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${rECRRepo.RepositoryUri}
+            build:
+              commands:
+                - echo Build started on `date`
+                - echo Building the Docker image...
+                - docker buildx build -t ${rECRRepo}:latest --platform linux/amd64,linux/arm64 .
+                - docker tag ${rECRRepo}:latest ${rECRRepo.RepositoryUri}:latest
+            post_build:
+              commands:
+                - echo Build completed on `date`
+                - echo Pushing the Docker image...
+                - docker push ${rECRRepo.RepositoryUri}:latest
+        GitCloneDepth: 1
+        GitSubmodulesConfig:
+          FetchSubmodules: false
+        InsecureSsl: false
+        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${rCodeCommit.Name}"
+        Type: "CODECOMMIT"
+      SourceVersion: "refs/heads/master"
+      TimeoutInMinutes: 60
+      Tags:
+        - Key: Name
+          Value: "Tenable-Build-Codebuild"
+        - Key: Environment
+          Value: !Ref pTagEnvironment
+        - Key: SDLC
+          Value: !Ref pTagSDLC
+        - Key: ApplicationName
+          Value: !Ref pTagApplicationName
+        - Key: ApplicationRole
+          Value: !Ref pTagApplicationRole
+        - Key: Cluster
+          Value: !Ref pTagCluster
+        - Key: DataClassification
+          Value: !Ref pTagDataClassification
+        - Key: Compliance
+          Value: !Ref pTagCompliance
+        - Key: DataRetention
+          Value: !Ref pTagDataRetention
+        - Key: map-migrated
+          Value: !Ref pTagMapMigrated
+        - Key: ProjectName
+          Value: !Ref pTagProjectName
+        - Key: ProductOwner
+          Value: !Ref pTagProductOwner
+        - Key: TechnicalOwner
+          Value: !Ref pTagTechnicalOwner
+        - Key: BusinessUnit
+          Value: !Ref pTagBusinessUnit
+        - Key: CostCenter
+          Value: !Ref pTagCostCenter
+        - Key: BusinessImpact
+          Value: !Ref pTagBusinessImpact
+        - Key: EscalationPath
+          Value: !Ref pTagEscalationPath
+        - Key: KnowledgeBase
+          Value: !Ref pTagKnowledgeBase
+        - Key: HoursOfOperation
+          Value: !Ref pTagHoursOfOperation
+        - Key: MaintenanceWindow
+          Value: !Ref pTagMaintenanceWindow
+        - Key: BackupSchedule
+          Value: !Ref pTagBackupSchedule
+        - Key: OptOut
+          Value: !Ref pTagOptOut
+        - Key: DeploymentMethod
+          Value: !Ref pTagDeploymentMethod

@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: 'AWS::LanguageExtensions'
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: General Properties
+        Parameters:
+          - pGLCTSolutionVersion
+      - Label:
+          default: SSO Configuration
+        Parameters:
+          - pSsoInstanceArn
+      - Label:
+          default: Account Ids
+        Parameters:
+          - pManagementAccountId
+          - pLogArchiveAccountId
+          - pSecurityAccountId
+      - Label:
+          default: Permission Set Configurations
+        Parameters:
+          - pPermissionSetCustomReadOnlyArn
+          - pPermissionSetAdministratorAccessArn
+          - pPermissionSetBillingAdminsArn
+          - pPermissionSetDelegatedAdminsArn
+          - pPermissionSetDevOpsAdminsArn
+          - pPermissionSetSecurityAdminsArn
+          - pPermissionSetSecurityTeamArn
+Parameters:
+  pGLCTSolutionVersion:
+    Description: The Global Logic solution version. Used to trigger updates on the nested StackSets.
+    Type: String
+  pSsoInstanceArn:
+    Type: String
+    Description: "The ARN of the IAM Identity Center instance under which the operation will be executed."
+  # Foundational Account IDs
+  pManagementAccountId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: "The AWS Account ID of the Management Account."
+    Default: '/sra/control-tower/management-account-id'
+  pLogArchiveAccountId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: "The AWS Account ID of the Log Archive Account."
+    Default: '/sra/control-tower/log-archive-account-id'
+  pSecurityAccountId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: "The AWS Account ID of the Security Account."
+    Default: '/sra/control-tower/audit-account-id'
+  # Permission Sets
+  pPermissionSetAdministratorAccessArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetReadOnlyArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetBillingAdminsArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetDelegatedAdminsArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetDevOpsAdminsArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetSecurityAdminsArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetSecurityTeamArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+Mappings:
+  AccountList:
+    Accounts:
+      Names:
+        - Management
+        - LogArchive
+        - Security
+  Management:
+      Assignments:
+        PermissionSets:
+          - AdministratorAccess
+          - ReadOnly
+          - BillingAdmins
+      AdministratorAccess:
+        PrincipalId: '06124294-40f1-70e3-7c2b-cf5142f46f98'
+      ReadOnly:
+        PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+      BillingAdmins:
+        PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+  LogArchive:
+      Assignments:
+        PermissionSets:
+          - AdministratorAccess
+          - ReadOnly
+      AdministratorAccess:
+        PrincipalId: '06124294-40f1-70e3-7c2b-cf5142f46f98'
+      ReadOnly:
+        PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+  Security:
+    Assignments:
+      PermissionSets:
+        - AdministratorAccess
+        - ReadOnly
+        - SecurityAdmins
+    AdministratorAccess:
+      PrincipalId: '06124294-40f1-70e3-7c2b-cf5142f46f98'
+    ReadOnly:
+      PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+    SecurityAdmins:
+      PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+Resources:
+  'Fn::ForEach::SSOGroupAssignment':
+    - Account
+    - 'Fn::FindInMap':
+      - AccountList
+      - Accounts
+      - Names
+    - 'Fn::ForEach::PermissionSets':
+      - PermissionSet
+      - 'Fn::FindInMap':
+        - Ref: Account
+        - Assignments
+        - PermissionSets
+      - 'rAssignment${Account}${PermissionSet}':
+          Type: AWS::SSO::Assignment
+          Properties:
+            InstanceArn: !Ref pSsoInstanceArn
+            PrincipalType: GROUP
+            TargetType: AWS_ACCOUNT
+            PermissionSetArn: !Ref
+              'Fn::Sub': 'pPermissionSet${PermissionSet}Arn'
+            TargetId: !Ref
+              'Fn::Sub': 'p${Account}AccountId'
+            PrincipalId:
+              'Fn::FindInMap':
+                - Ref: Account
+                - Ref: PermissionSet
+                - PrincipalId
+
+
+

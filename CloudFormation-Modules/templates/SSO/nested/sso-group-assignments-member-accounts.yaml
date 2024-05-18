@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: 'AWS::LanguageExtensions'
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: General Properties
+        Parameters:
+          - pGLCTSolutionVersion
+      - Label:
+          default: SSO Configuration
+        Parameters:
+          - pSsoInstanceArn
+      - Label:
+          default: Account Ids
+        Parameters:
+          - pAccountIds
+      - Label:
+          default: Permission Set Configurations
+        Parameters:
+          - pPermissionSetReadOnlyArn
+          - pPermissionSetAdministratorAccessArn
+          - pPermissionSetBillingAdminsArn
+          - pPermissionSetDelegatedAdminsArn
+          - pPermissionSetDevOpsAdminsArn
+          - pPermissionSetSecurityAdminsArn
+          - pPermissionSetSecurityTeamArn
+Parameters:
+  pGLCTSolutionVersion:
+    Description: The Global Logic solution version. Used to trigger updates on the nested StackSets.
+    Type: String
+  pSsoInstanceArn:
+    Type: String
+    Description: "The ARN of the IAM Identity Center instance under which the operation will be executed."
+  pAccountIds:
+    Description: The list of accounts to assign the permission sets to within this template.
+    Type: CommaDelimitedList
+  pPermissionSetAdministratorAccessArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetReadOnlyArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetBillingAdminsArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetDelegatedAdminsArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetDevOpsAdminsArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetSecurityAdminsArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+  pPermissionSetSecurityTeamArn:
+    Type: String
+    Description: "ARN of SSO Permission Set"
+Mappings:
+  "274790145871": # Development
+    Assignments:
+      PermissionSets:
+        - AdministratorAccess
+        - ReadOnly
+        - DevOpsAdmins
+    AdministratorAccess:
+      PrincipalId: '06124294-40f1-70e3-7c2b-cf5142f46f98'
+    ReadOnly:
+      PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+    DevOpsAdmins:
+      PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+  "870409833752": # Network
+    Assignments:
+      PermissionSets:
+        - AdministratorAccess
+        - ReadOnly
+        - DevOpsAdmins
+    AdministratorAccess:
+      PrincipalId: '06124294-40f1-70e3-7c2b-cf5142f46f98'
+    ReadOnly:
+      PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+    DevOpsAdmins:
+      PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+  "010662631564": # Shared Services
+    Assignments:
+      PermissionSets:
+        - AdministratorAccess
+        - ReadOnly
+        - DelegatedAdmins
+    AdministratorAccess:
+      PrincipalId: '06124294-40f1-70e3-7c2b-cf5142f46f98'
+    ReadOnly:
+      PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+    DelegatedAdmins:
+      PrincipalId: 'a6a272d4-b021-706c-5ba2-bdba230a50b3'
+Resources:
+  'Fn::ForEach::SSOGroupAssignment':
+    - Account
+    - !Ref pAccountIds
+    - 'Fn::ForEach::PermissionSets':
+      - PermissionSet
+      - 'Fn::FindInMap':
+        - Ref: Account
+        - Assignments
+        - PermissionSets
+      - 'rAssignment${Account}${PermissionSet}':
+          Type: AWS::SSO::Assignment
+          Properties:
+            InstanceArn: !Ref pSsoInstanceArn
+            PrincipalType: GROUP
+            TargetType: AWS_ACCOUNT
+            PermissionSetArn: !Ref
+              'Fn::Sub': 'pPermissionSet${PermissionSet}Arn'
+            TargetId: !Ref Account
+            PrincipalId:
+              'Fn::FindInMap':
+                - Ref: Account
+                - Ref: PermissionSet
+                - PrincipalId
+
+
+
