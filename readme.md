@@ -8,7 +8,7 @@
 
 ## Description
 
-Functionality of the `Nested Stacks Pipeline` solution is established in 3 stages, the deployment of the Pipeline through CfCT, and the deployment of the GL Custom solutions from the following locations.
+Functionality of the `Nested Stacks Pipeline` solution is established in 3 stages, the deployment of the Pipeline through CfCT, and the deployment of the Custom solutions from the following locations.
 
   1. [CloudFormation](./CloudFormation/) - Deployment of the Pipeline via the CFN template via CfCT
   2. [Pipeline](./CloudFormation-Modules/scripts) - Configuration of the pipeline including uploading the required .sh scripts and creating the folder structure
@@ -186,7 +186,7 @@ The below Parameters are some of the examples used for Tagging Purposes and cann
   - Create 2 new folders `templates` and `parameters` in your repo.
 
      1. The CodeCommit repo will be created in the Management Account, you will need to establish a SSO / progromatic session to the account and ensure that you have git: `remote-codecommit` installed locally
-     2. Once you have a session git clone the repo to your machine with the relevant command based on your setup. i.e. 
+     2. Once you have a session git clone the repo to your machine with the relevant command based on your setup. i.e.
         ```bash
         git clone codecommit::eu-west-2://Nested-Stacks-Modules
         # Or if using profiles
